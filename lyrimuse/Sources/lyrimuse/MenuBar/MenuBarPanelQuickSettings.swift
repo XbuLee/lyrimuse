@@ -396,7 +396,7 @@ struct PanelQuickSettings: View {
                 .controlSize(.small)
                 .fixedSize()
             }
-            notchWidthRow
+            notchWidthRows
             // 「显示歌词」(搬进这块面板)。绑定直接写 AppSettings 就够,
             // 不用像宽度那样再喊一次控制器:`NotchLyricsWindowController` 自己订阅着
             // `$notchShowLyrics`(见那边的 showLyricsObserver),值一变卡片就重排。
@@ -596,63 +596,21 @@ struct PanelQuickSettings: View {
         }
     }
 
-    /// 灵动岛「宽度」—— **一行双滑块**:左边那只是稳态宽(没 hover 时多宽),右边那只是展开宽。
-    ///
-    /// ~09-14 之间这里是**两根单滑块**(「宽度」+「展开宽度」各占一行)。合并的由头是
-    /// 这块面板同日补进「副行」「字号」之后灵动岛那格要到 7 行、比上面的「正在播放」卡还高;但
-    /// 合并本身是**对的**而不只是省地方 —— 用户当初提这个功能时说的就是"设置一个上限和一个下限",
-    /// 编辑台那根早已是 `RangeSlider`,只有这块面板一直拆着两根,同一件事在两个
-    /// 入口长成两副样子。合完之后形态一致,读数也跟编辑台同一个口径(两者相等时只报一个数)。
-    ///
-    /// 两只滑块**共用** `usableWidthRangeOnCurrentScreen`,不再碰
-    /// `usableExpandedWidthRangeOnCurrentScreen`(那个是给单滑块入口用的,下界 = 稳态真实宽)——
-    /// "展开不许比稳态窄"改由 `RangeSlider` 内部的 `NotchWidthRangeDrag` 管,跟编辑台同一条路。
-    ///
-    /// 落盘仍走 `NotchEditorStage.commitWidths`(三个写入口唯一的落盘路径),且跟合并前一样
-    /// **拖动中就落**:编辑台推迟到松手是因为它要在拖动期间切预览 chrome 的展开态,这块面板
-    /// 没有预览、不需要那套本地 @State。
-    private var notchWidthRow: some View {
-        row(L10n.t("宽度")) {
-            HStack(spacing: 6) {
-                RangeSlider(
-                    lower: settings.notchContentWidth,
-                    upper: settings.notchExpandedContentWidth,
-                    range: NotchEditorStage.usableWidthRangeOnCurrentScreen,
-                    // step 仍然是 10:这根是兜底通路、旁边没有实时预览,粗一点反而好落值
-                    // (编辑台那根是 2)。
-                    step: 10, tint: .accentColor,
-                    lowerLabel: L10n.t("灵动岛宽度"), upperLabel: L10n.t("灵动岛展开宽度"),
-                    valueText: { String(format: L10n.t("%@pt"), "\(Int($0))") },
-                    onChange: { steady, expanded in
-                        NotchEditorStage.commitWidths(steady: steady, expanded: expanded)
-                    },
-                    onEditingChanged: { _ in })
-                    // 高度不能省:`RangeSlider` 内部是 GeometryReader + `.frame(maxHeight: .infinity)`,
-                    // 不钉高度它会把这一行撑到父容器那么高。16pt 跟旁边几根 `.controlSize(.mini)`
-                    // 的 `SteppedSlider` 一边高。
-                    .frame(width: 128, height: 16)
-                Text(notchWidthValueText)
-                    .font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 62, alignment: .trailing)
-                    // 读数是两只滑块的镜像、不是第三个可读元素:它们各自带着 accessibilityValue,
-                    // 都进无障碍树 VoiceOver 会把同一个值读两遍(同编辑台那根)。
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-
-    /// 双滑块那一行的读数:口径跟编辑台 `widthValueText` 一致 —— 报的是**真实**宽度(过了
-    /// "两只耳朵放得下"那道下限,所以跟设定值可能不等),两者相等(展开不加宽)时只报一个数。
-    private var notchWidthValueText: String {
-        let steady = Int(NotchEditorStage.effectiveWidth(baseWidth: settings.notchContentWidth))
-        let expanded = Int(NotchEditorStage.effectiveExpandedWidth(
-            steadyBase: settings.notchContentWidth,
-            expandedBase: settings.notchExpandedContentWidth))
-        if expanded == steady {
-            return String(format: L10n.t("%@pt"), "\(steady)")
-        }
-        return String(format: L10n.t("%@–%@pt"), "\(steady)", "\(expanded)")
+    /// 两个宽度必须各有一根明确命名的滑杆。双滑块在两个值重叠或靠近时很难选中常驻端点,
+    /// 用户会误以为只能改展开宽度。两根都走统一的 `commitWidths`,不变量仍是「展开 ≥ 常驻」。
+    @ViewBuilder private var notchWidthRows: some View {
+        sliderRow(L10n.t("常驻宽度"), value: Binding(
+            get: { NotchEditorStage.effectiveWidth(baseWidth: settings.notchContentWidth) },
+            set: { NotchEditorStage.commitWidths(steady: $0) }
+        ), range: NotchEditorStage.usableWidthRangeOnCurrentScreen, step: 10)
+        sliderRow(L10n.t("展开宽度"), value: Binding(
+            get: {
+                NotchEditorStage.effectiveExpandedWidth(
+                    steadyBase: settings.notchContentWidth,
+                    expandedBase: settings.notchExpandedContentWidth)
+            },
+            set: { NotchEditorStage.commitWidths(expanded: $0) }
+        ), range: NotchEditorStage.usableExpandedWidthRangeOnCurrentScreen, step: 10)
     }
 
     /// 「副行」行。灵动岛与菜单栏共用同一个四选一枚举(`LyricSecondaryLine`)和

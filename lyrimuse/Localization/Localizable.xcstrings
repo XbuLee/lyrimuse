@@ -8879,6 +8879,121 @@
         }
       }
     },
+    "居中悬挂" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Center Hanging"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "居中悬挂"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "置中懸掛"
+          }
+        }
+      }
+    },
+    "刘海左侧" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left of Notch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刘海左侧"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏海左側"
+          }
+        }
+      }
+    },
+    "刘海右侧" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right of Notch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刘海右侧"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瀏海右側"
+          }
+        }
+      }
+    },
+    "自动侧边" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic Side"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动侧边"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動側邊"
+          }
+        }
+      }
+    },
+    "可居中悬挂，或放在刘海左、右侧；自动侧边会选择空间更宽的一侧。没有刘海时始终在屏幕顶部居中。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can hang in the center or sit to the left or right of the notch. Automatic Side chooses the roomier side. On displays without a notch, it is always centered at the top."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可居中悬挂，或放在刘海左、右侧；自动侧边会选择空间更宽的一侧。没有刘海时始终在屏幕顶部居中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可置中懸掛，或放在瀏海左、右側；自動側邊會選擇空間較寬的一側。沒有瀏海時一律置於螢幕頂部中央。"
+          }
+        }
+      }
+    },
     "屏幕" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25426,6 +25541,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已快取讀音"
+          }
+        }
+      }
+    },
+    "常驻宽度" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resting Width"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常驻宽度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常駐寬度"
           }
         }
       }

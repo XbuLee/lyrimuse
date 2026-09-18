@@ -430,6 +430,17 @@ extension NotchEarModule {
     var isPrimary: Bool { self == .title }
 }
 
+extension NotchPlacement {
+    var displayName: String {
+        switch self {
+        case .center: return L10n.t("居中悬挂")
+        case .left: return L10n.t("刘海左侧")
+        case .right: return L10n.t("刘海右侧")
+        case .automatic: return L10n.t("自动侧边")
+        }
+    }
+}
+
 extension NotchLyricRowArtworkPosition {
     var displayName: String {
         switch self {
@@ -499,6 +510,8 @@ extension NotchCardStyle {
 //   刘海是屏幕硬件层面真实不发光的区域,横向落在刘海宽度(controller.notchWidth)范围内
 //   的内容会被真实挡掉,这一行中间让出 notchWidth 宽度的空当。空当里唯一的内容是一枚
 //   **故意让硬件挡住**的品牌胶囊彩蛋(notchSeam):只在截屏/录屏/投屏时露面。
+//   无刘海屏幕播放且显示歌词时不渲染这行,避免人为制造一段“假刘海”;暂停收起、空闲或
+//   关闭歌词时仍保留它,作为可悬停的紧凑入口。
 //   左耳放歌名,右耳放 3 个播放控制按钮。
 // - 歌词行:逐字高亮跟随播放进度扫过,技术上跟 LyricsOverlayView.mainLine 是同一套原理
 //   (TimelineView 按渲染帧频现算 fillFraction+渐变着色),但不复用那份实现——这里没有
@@ -651,6 +664,11 @@ protocol NotchChromeSource: ObservableObject {
     var isExpanded: Bool { get }
     /// 物理刘海的宽度,顶行中间要给它让出空当。无刘海屏幕是 0。
     var notchWidth: CGFloat { get }
+    /// 当前目标屏幕是否真的有物理刘海。不能只从 `contentTopInset` 推断:无刘海屏幕也会
+    /// 用菜单栏高度维持暂停/空闲态那块可悬停的小胶囊。
+    var hasPhysicalNotch: Bool { get }
+    /// 已解析的位置。`.automatic` 在进入 chrome 前已经解析为 `.left` / `.right`。
+    var placement: NotchPlacement { get }
     var contentTopInset: CGFloat { get }
     /// 卡片稳态 / 展开态的**真实**宽(经耳朵下限与「展开 ≥ 稳态」)。歌词行按形态各自定宽、以卡片中心为锚,
     /// 换形态时在原地交叉淡入淡出而不是跟着卡片边沿平移(见 `NotchLyricsView.lyricRowSlot`)。
@@ -741,6 +759,8 @@ protocol NotchChromeSource: ObservableObject {
 }
 
 extension NotchChromeSource {
+    var isCenteredOnPhysicalNotch: Bool { hasPhysicalNotch && placement == .center }
+
     /// 那一行「正在播放」的歌词行(`lyricRow`,44pt 高)到底画不画 —— 用户关掉「显示歌词」时
     /// 稳态确实该隐藏(退化成贴着刘海的状态栏,这是那个开关本来的意思);但**展开之后必须
     /// 照常画**(回归护栏:只放开「下一句预览」那一行是不够的,这一行
@@ -750,6 +770,22 @@ extension NotchChromeSource {
     /// 歌词挡视线"这个理由连累。高度预留(`cardHeight`)和实际渲染(NotchLyricsView 的
     /// `if controller.showsLyricRow`)必须用同一个值。
     var showsLyricRow: Bool { hasTrack && (showsLyrics || isExpanded) }
+
+    /// 顶部耳朵行实际占掉的高度。有物理刘海时必须始终避让;无刘海屏幕在播放并显示
+    /// 歌词时不再保留一段“假刘海”,歌词行直接从卡片顶边开始。暂停、空闲或关闭歌词时
+    /// 仍保留顶行,否则卡片会缩成 0 高、失去 hover/播放控制入口。
+    var contentOriginY: CGFloat {
+        if isCenteredOnPhysicalNotch || isCollapsed || !hasTrack || !showsLyricRow { return contentTopInset }
+        return 0
+    }
+
+    /// 侧放或无刘海时，常驻歌词行不能高过菜单栏；展开后恢复用户配置的完整行高。
+    func displayLyricRowHeight(expanded: Bool) -> CGFloat {
+        if expanded || isCenteredOnPhysicalNotch { return lyricRowHeight }
+        return min(lyricRowHeight, contentTopInset)
+    }
+
+    var displayLyricRowHeight: CGFloat { displayLyricRowHeight(expanded: isExpanded) }
 
     /// 展开区里那行「下一句歌词预览」到底画不画 —— 只看这首歌**有没有歌词**,不受
     /// 「显示歌词」那个开关影响(关掉稳态那一条歌词行之后,指向展开的
@@ -844,9 +880,9 @@ extension NotchChromeSource {
         if !hasTrack {
             return contentTopInset + (expanded ? NotchMetrics.idleExpandedPanelHeight : 0)
         }
-        return contentTopInset
+        return contentOriginY
             // 稳态歌词行要不要留高度,同 showsLyricRow(展开时哪怕关着「显示歌词」也要留;这里已经有曲目)。
-            + ((showsLyrics || expanded) ? lyricRowHeight
+            + ((showsLyrics || expanded) ? displayLyricRowHeight(expanded: expanded)
                // 换歌翻牌:关着歌词行时为掉出来的歌名多长一截(开着时歌名盖在歌词行上,不用另长)。
                : (trackDrop != nil ? NotchMetrics.trackDropHeight : 0))
             + (expanded
@@ -962,8 +998,10 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
                     // 歌名/播放键都收进 hover 展开卡);稳态/展开 = 歌名 + 播放键。
                     // 两种形态是**同一个** topRow 按 isCollapsed 换耳朵里的内容,不是两个视图
                     // 在这里 if/else 互换(理由见 topRow 头注)。
-                    topRow(earWidth: earWidth)
-                        .frame(height: controller.contentTopInset)
+                    if controller.contentOriginY > 0 {
+                        topRow(earWidth: earWidth)
+                            .frame(height: controller.contentOriginY)
+                    }
                     // 顶行以下的一切(曲目信息头部 / 歌词行 / 展开区)**不在这个 VStack 里**,
                     // 而是作为外层 ZStack 的 overlay 各自定宽、定 y、以卡片中心为锚(见 cardBodyLayer)。
                     // 卡片的高度本来就由 NotchChromeSource.cardHeight 给 NotchWindowRoot 钉死,不靠这里堆出来。
@@ -1000,7 +1038,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
                     NotchIdlePanelHost(prompt: prompt, tint: accentOrWhite) { idleExpandedPanel }
                         .frame(width: controller.expandedCardWidth,
                                height: NotchMetrics.idleExpandedPanelHeight, alignment: .top)
-                        .padding(.top, controller.contentTopInset)
+                        .padding(.top, controller.contentOriginY)
                         .modifier(NotchCardLayerActive(active: controller.isExpanded))
                         .opacity(revealContentOpacity)
                 }
@@ -1020,9 +1058,9 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
             .overlay(alignment: .top) {
                 NotchTrackDropStrip(
                     drop: shownTrackDrop, noteTint: trackDropNoteTint, width: controller.steadyCardWidth,
-                    height: controller.showsLyrics ? controller.lyricRowHeight : NotchMetrics.trackDropHeight,
+                    height: controller.showsLyrics ? controller.displayLyricRowHeight : NotchMetrics.trackDropHeight,
                     animated: !reduceMotion)
-                    .padding(.top, controller.contentTopInset)
+                    .padding(.top, controller.contentOriginY)
                     .opacity(revealContentOpacity)
             }
             // 展开态内容(下一句预览+进度条)本身没有另外裁一次形状——如果只让背景那一层
@@ -1660,7 +1698,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
     /// 悬停 / 按下反馈补。状态由
     /// `HoverReveal` 持有而不是放在本视图上 —— 理由见那个壳的注释(这是函数,三处调用点共用)。
     private func artworkThumbnail(_ image: NSImage, side: CGFloat? = nil) -> some View {
-        let side = side ?? Self.artworkSide(rowHeight: controller.lyricRowHeight)
+        let side = side ?? Self.artworkSide(rowHeight: controller.displayLyricRowHeight)
         return HoverReveal { hovering in
             artworkButton(image, side: side, hovering: hovering)
         }
@@ -1752,7 +1790,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
     /// NotchMetrics.expandedExtraHeight 为唯一真源,这里的 y 只是把同一组量按顺序加起来。
     private var cardBodyLayer: some View {
         let expanded = controller.isExpanded
-        let top = controller.contentTopInset
+        let top = controller.contentOriginY
         let headerHeight = controller.expandedTrackInfoHeaderHeight
         // 稳态那份和展开那份到底在不在同一个落点:纵向差展开头部的高度,横向差两个卡片宽。
         // 两者都为零时两份逐像素重合,淡出淡入必须同步进行(错开会白闪一下);只要有一样不为零,
@@ -1776,20 +1814,20 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
             // 按宽度断句只认一份歌词行的宽:稳态那份(更窄)在就报它,不在(「显示歌词」关着)才报展开那份。
             if controller.showsLyrics {
                 lyricRow(reportsWidth: reportsLineLayout)
-                    .frame(width: controller.steadyCardWidth, height: controller.lyricRowHeight)
+                    .frame(width: controller.steadyCardWidth, height: controller.displayLyricRowHeight)
                     .padding(.top, top)
                     // 换歌翻牌的歌名盖在这一行上时让开(见 body 里那条 NotchTrackDropStrip)。
                     .modifier(NotchCardLayerActive(active: !expanded && shownTrackDrop == nil, staggered: staggered))
             }
             lyricRow(reportsWidth: reportsLineLayout && !controller.showsLyrics)
-                .frame(width: controller.expandedCardWidth, height: controller.lyricRowHeight)
+                .frame(width: controller.expandedCardWidth, height: controller.displayLyricRowHeight)
                 .padding(.top, top + headerHeight)
                 .modifier(NotchCardLayerActive(active: expanded, staggered: staggered))
             // 展开区**完全不**受「显示歌词」开关影响:它是够到播放控制和进度条的唯一入口,
             // 而且用户主动指向展开这个动作本身就说明他现在想看更多 —— 连里面那行下一句预览也照常画。
             expandedContent
                 .frame(width: controller.expandedCardWidth)
-                .padding(.top, top + headerHeight + controller.lyricRowHeight)
+                .padding(.top, top + headerHeight + controller.displayLyricRowHeight)
                 .modifier(NotchCardLayerActive(active: expanded, staggered: staggered))
         }
     }
@@ -1992,7 +2030,9 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
     /// 仍在 44 里、上下各余 ≥ 4pt —— 字号范围就是按这条倒推的,Core 有 selftest 钉着。
     @ViewBuilder
     private var lyricTextColumn: some View {
-        if playback.secondaryLine.showsSecondaryRow {
+        if controller.displayLyricRowHeight >= NotchLyricRowMetrics.contentMinimumRowHeight(
+            fontSize: playback.mainFontSize, twoLines: true),
+           playback.secondaryLine.showsSecondaryRow {
             VStack(alignment: .leading, spacing: NotchMetrics.secondaryLineSpacing) {
                 mainLyricLine
                     .frame(height: playback.mainLineHeight)
@@ -2113,7 +2153,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
                 // 都用这个替代」)—— 播放器在广告时给的图是广告物料的缩略图,不是"这一刻在听
                 // 什么"的封面,四个封面位统一让位给同一枚喇叭。开关(`notchLyricRowShowsArtwork`)
                 // 仍然管这一格在不在:关了就还是不画,广告不该把用户关掉的东西请回来。
-                adBreakArtworkTile(side: Self.artworkSide(rowHeight: controller.lyricRowHeight))
+                adBreakArtworkTile(side: Self.artworkSide(rowHeight: controller.displayLyricRowHeight))
             } else if let image = radioTalkStation?.image ?? playback.highResArtworkImage ?? playback.artworkImage {
                 artworkThumbnail(image)
             }

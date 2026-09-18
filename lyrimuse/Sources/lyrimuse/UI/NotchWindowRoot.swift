@@ -123,6 +123,14 @@ struct NotchWindowRoot: View {
     /// "两处各自判断必然漂"说的就是这种地方。
     private var cardHeight: CGFloat { controller.cardHeight }
 
+    private var cardAlignment: Alignment {
+        switch controller.placement {
+        case .left: return .topTrailing
+        case .right: return .topLeading
+        case .center, .automatic: return .top
+        }
+    }
+
     /// 退场/回场动画:缩进刘海用 ease-in(vanishDuration);**回场瞬时,不做动画**。
     /// `.animation(_:value:)` 用变化后的新值求值,所以 isVanished 刚翻 true 走前者、
     /// 刚翻 false 走后者。reduceMotion 下一律 nil(控制器那边也不会进这条路)。
@@ -147,7 +155,7 @@ struct NotchWindowRoot: View {
         NotchReveal.startWidthFraction(notchWidth: controller.notchWidth, cardWidth: cardWidth)
     }
     private var revealStartHeight: CGFloat {
-        NotchReveal.startHeightFraction(topRowHeight: controller.contentTopInset, cardHeight: cardHeight)
+        NotchReveal.startHeightFraction(topRowHeight: controller.contentOriginY, cardHeight: cardHeight)
     }
 
     var body: some View {
@@ -234,9 +242,8 @@ struct NotchWindowRoot: View {
                 case .ended: updateHover(inside: false, point: nil)
                 }
             }
-            // 贴顶 + 水平居中。窗口本身是按刘海中心点摆的,所以"在窗口里居中"就等于
-            // "对齐刘海中心"。
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // 窗口按所选位置摆放；卡片在侧放窗口中贴近刘海，在居中窗口中居中。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: cardAlignment)
             // 三种形态切换用三条**不同**的弹簧,理由见 cardAnimation。
             .animation(cardAnimation, value: cardHeight)
             .animation(cardAnimation, value: cardWidth)

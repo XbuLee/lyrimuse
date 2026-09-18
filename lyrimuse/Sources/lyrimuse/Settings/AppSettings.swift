@@ -21,6 +21,14 @@ enum NotchCardStyle: String, Codable, Hashable, CaseIterable {
     case coverArt
 }
 
+/// 灵动岛相对物理刘海的位置。没有物理刘海时四种设置都退化为屏幕顶部居中。
+enum NotchPlacement: String, Codable, Hashable, CaseIterable {
+    case center
+    case left
+    case right
+    case automatic
+}
+
 /// 灵动岛**稳态/展开**那一行里,左右两只耳朵各显示什么。displayName 定义在
 /// NotchLyricsView.swift(跟卡片本身的 UI 强相关),这里只负责持久化用的 rawValue。
 ///
@@ -315,6 +323,7 @@ final class AppSettings: ObservableObject {
         static let classicOverlayEnabled = "np:classicOverlayEnabled"
         static let notchOverlayEnabled = "np:notchOverlayEnabled"
         static let notchCardStyle = "np:notchCardStyle"
+        static let notchPlacement = "np:notchPlacement"
         static let notchShowLyrics = "np:notchShowLyrics"
         static let motionCoverEnabled = "np:motionCoverEnabled"
         static let lyricsWindowBackgroundMode = "np:lyricsWindowBackgroundMode"
@@ -441,6 +450,7 @@ final class AppSettings: ObservableObject {
     // 用户和存量里从没动过某一项的人,这是刻意的。下面凡是被校准推翻了原有理由的,都在那一行
     // 旁边留了记录,没有把原理由删掉。详见 05 章「默认值的一次整体校准」。
     static let defaultNotchCardStyle = NotchCardStyle.coverArt
+    static let defaultNotchPlacement = NotchPlacement.center
     // 灵动岛稳态宽 / 展开宽的默认值(是两个键)。
     //
     // 前这里只有**一个**常量、两个键共用它,理由写的是"保证'没存过'的新装机器上
@@ -1214,6 +1224,9 @@ final class AppSettings: ObservableObject {
 
     @Published var notchCardStyle: NotchCardStyle {
         didSet { defaults.set(notchCardStyle.rawValue, forKey: Keys.notchCardStyle) }
+    }
+    @Published var notchPlacement: NotchPlacement {
+        didSet { defaults.set(notchPlacement.rawValue, forKey: Keys.notchPlacement) }
     }
     // 稳态/展开那一行左右两只耳朵各显示什么(见 NotchEarModule)。跟 notchCardStyle 同一个
     // 模式:纯持久化,NotchLyricsView 每次渲染直接读,不需要连带调窗口控制器"生效"——它们
@@ -2179,6 +2192,8 @@ final class AppSettings: ObservableObject {
         notchOverlayEnabled = notchOn
         notchCardStyle = defaults.string(forKey: Keys.notchCardStyle)
             .flatMap(NotchCardStyle.init(rawValue:)) ?? Self.defaultNotchCardStyle
+        notchPlacement = defaults.string(forKey: Keys.notchPlacement)
+            .flatMap(NotchPlacement.init(rawValue:)) ?? Self.defaultNotchPlacement
         notchShowLyrics = (defaults.object(forKey: Keys.notchShowLyrics) as? Bool) ?? Self.defaultNotchShowLyrics
         motionCoverEnabled = (defaults.object(forKey: Keys.motionCoverEnabled) as? Bool) ?? Self.defaultMotionCoverEnabled
         lyricsWindowBackgroundMode = defaults.string(forKey: Keys.lyricsWindowBackgroundMode)

@@ -418,6 +418,8 @@
 "切换迷你 / 完整尺寸" = "Switch Mini / Full Size";
 "切歌时新歌名从刘海下方滑出，数秒后收回" = "On a song change, the new title slides out below the notch for a few seconds";
 "切歌时显示系统通知，包含封面、歌名、歌手和专辑" = "Show a system notification with the artwork, title, artist and album when a new song starts";
+"刘海右侧" = "Right of Notch";
+"刘海左侧" = "Left of Notch";
 "刚刚" = "just now";
 "刚刚更新" = "Just updated";
 "创作者：" = "Written by: ";
@@ -509,6 +511,7 @@
 "另有 %@ 首歌曲无源应答 · 全部自动匹配#one" = "%@ more song had no source response · Auto-Match All";
 "另有 %d 个文件未能写入歌词文件夹，请检查写入权限和磁盘空间" = "%d more couldn't be written to the lyrics folder. Check write access and disk space.";
 "可在任意 App 中触发，需包含 ⌘、⌥ 或 ⌃ 之一" = "Works in any app; must include ⌘, ⌥ or ⌃";
+"可居中悬挂，或放在刘海左、右侧；自动侧边会选择空间更宽的一侧。没有刘海时始终在屏幕顶部居中。" = "Can hang in the center or sit to the left or right of the notch. Automatic Side chooses the roomier side. On displays without a notch, it is always centered at the top.";
 "右" = "Right";
 "右侧" = "Right";
 "右侧颜色" = "Right Color";
@@ -615,6 +618,7 @@
 "定位" = "Locate";
 "实验室功能" = "Lab Features";
 "实验性 Beta 功能" = "Experimental beta features";
+"常驻宽度" = "Resting Width";
 "宽度" = "Width";
 "宽度模式" = "Width Mode";
 "对比 %@ – %@" = "Compared with %@ – %@";
@@ -668,6 +672,7 @@
 "尚未连接 Last.fm 账号" = "Last.fm account isn't connected yet";
 "尝试更优歌词" = "Retry for better lyrics";
 "居中" = "Center";
+"居中悬挂" = "Center Hanging";
 "屏幕" = "Display";
 "展开" = "Expand";
 "展开/收起触控栏歌词" = "Expand/Collapse Touch Bar Lyrics";
@@ -1566,6 +1571,7 @@
 "自动匹配缺失歌词" = "Auto-Match Missing Lyrics";
 "自动匹配范围：无歌词或仅有纯文本的歌曲；纯音乐和人工修正过的歌曲除外" = "Auto-matches songs with no lyrics or plain text only. Instrumentals and manually edited songs are left alone.";
 "自动备份失败，为避免数据无法恢复，本次未执行删除。请检查磁盘空间和配置文件夹的写入权限后重试" = "The automatic backup couldn't be written, so nothing was deleted this time to keep it recoverable. Check your disk space and write access to the config folder, then try again.";
+"自动侧边" = "Automatic Side";
 "自动更新" = "Automatic Updates";
 "自动检查" = "Check Automatically";
 "自动识别" = "Auto-detect";

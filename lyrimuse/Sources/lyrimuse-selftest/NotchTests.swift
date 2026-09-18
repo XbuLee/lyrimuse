@@ -451,13 +451,13 @@ func runNotchTests() {
         let stage = read("NotchEditorStage.swift")
         expectEqual(controller.contains(
             "AppSettings.shared.$notchLyricRowHeight, AppSettings.shared.$notchFontSize, AppSettings.shared.$notchSecondaryLine")
-                    && controller.contains("height: max(geo.notchHeight + lyricRowHeight + self.expandedExtraHeight("), true,
+                    && controller.contains("+ lyricRowHeight + self.expandedExtraHeight("), true,
                     "高度接线: 真窗口订阅行高、字号、副行三项,窗口高度用实际行高")
         expectEqual(view.contains("var lyricRowHeight: CGFloat { get }")
-                    && view.contains("+ ((showsLyrics || expanded) ? lyricRowHeight"), true,
+                    && view.contains("+ ((showsLyrics || expanded) ? displayLyricRowHeight(expanded: expanded)"), true,
                     "高度接线: chrome 给实际行高,卡片高度公式读它")
         expectEqual(stage.contains("var lyricRowHeight: CGFloat { AppSettings.shared.notchEffectiveLyricRowHeight }")
-                    && stage.contains("chrome.contentTopInset + NotchLyricRowMetrics.rowHeight + NotchMetrics.expandedExtraHeightMax("),
+                    && stage.contains("+ NotchLyricRowMetrics.rowHeight + NotchMetrics.expandedExtraHeightMax("),
                     true, "高度接线: 编辑台替身现读实际行高,舞台按上限留高度(拖滑杆时整页不跳)")
         for (name, source) in [("NotchLyricsView", view), ("NotchEditorStage", stage), ("NotchLyricsWindowController", controller)] {
             expectEqual(source.isEmpty, false, "高度接线: 读到 \(name).swift")
@@ -1137,7 +1137,8 @@ func runNotchTests() {
                         && ctrlSrc.contains("ListenMilestoneCenter.shared.$current.removeDuplicates().sink")
                         && ctrlSrc.contains("milestoneObserver?.cancel()"), true,
                         "里程碑契约: 控制器镜像报喜、撑开卡片,收尾取消订阅")
-            expectEqual(ctrlSrc.contains("geo.notchHeight + NotchMetrics.milestonePanelHeight))"), true,
+            expectEqual(ctrlSrc.contains("let milestoneHeight = geo.notchHeight + NotchMetrics.milestonePanelHeight")
+                        && ctrlSrc.contains("max(activeExpandedHeight, idleExpandedHeight, milestoneHeight)"), true,
                         "里程碑契约: 窗口高度兜得住报喜卡片")
             expectEqual(v.contains("if milestone != nil { return contentTopInset + NotchMetrics.milestonePanelHeight }"), true,
                         "里程碑契约: 报喜时卡片高度换成报喜面板那一档")

@@ -62,10 +62,14 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
     /// 锁屏、屏保、熄屏都是 false。灵动岛所有按时间推进的表都按它停(经环境值 `notchCardLayerActive`),
     /// SwiftUI 不会因为窗口看不见就自己停 `TimelineView(.animation)`。默认 true:宁可多跑也不能把看得见的窗口停表。
     @Published private(set) var isSurfaceVisible = true
-    // 常显内容行(歌词)相对窗口顶部的偏移——正好等于刘海(或无刘海屏幕的兜底高度)
-    // 本身的高度,这样歌词永远从刘海往下才开始画,不会被刘海真实挡住一部分。
-    // NotchLyricsView 读这个属性给歌词行加 .padding(.top, contentTopInset)。
+    // 目标屏幕顶部硬件/菜单栏的高度。有真刘海时它始终是歌词内容的顶部偏移;无刘海时
+    // 只给暂停收起、空闲或关闭歌词的顶行使用,播放态歌词不再被它向下推。
     @Published private(set) var contentTopInset: CGFloat = 32
+    /// 当前窗口所在屏幕是否有真实硬件刘海。无刘海屏仍保留 `contentTopInset` 作为
+    /// 暂停/空闲态胶囊高度,但播放态布局会据此取消假刘海占位。
+    @Published private(set) var hasPhysicalNotch: Bool = false
+    /// 用户设置经当前屏幕几何解析后的实际位置；自动只会解析成左或右。
+    @Published private(set) var placement: NotchPlacement = .center
     // 刘海本身的真实宽度(无真刘海时为 0)——播放控制按钮要挪到刘海两侧("耳朵")那
     // 两条空间里,不能摆在刘海本身的 x 范围内:物理刘海是屏幕硬件层面真实不发光的
     // 区域,横向也会跟纵向一样把落在这个范围内的内容整个挡掉。NotchLyricsView 读这个
@@ -227,6 +231,8 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
     /// 视图那边按同一个值排版。由 `lyricRowHeightObserver` 用 sink 参数值算好写进来(@Published 是 willSet 时机,
     /// 回读 AppSettings 拿到的是旧值),再重算几何。
     @Published private(set) var lyricRowHeight: CGFloat = AppSettings.shared.notchEffectiveLyricRowHeight
+    /// 侧放时给系统菜单和状态图标留余地；最终还会与该侧真实可用宽度取小者。
+    static let sideCardMaxWidth: CGFloat = 360
     // 宽度是固定值,不随当前歌词文字宽度动态变化——预期是多大就多大,不会随着歌词
     // 发生变化。数值本身(默认 360)以及用户可调的设置项都定义在 AppSettings.
     // notchContentWidth(这里不重复放一份、避免两处数字不同步)。超长歌词交给
@@ -332,6 +338,7 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
     private var lyricRowHeightObserver: AnyCancellable?
     private var leftEarObserver: AnyCancellable?
     private var rightEarObserver: AnyCancellable?
+    private var placementObserver: AnyCancellable?
     private var trackPresenceObserver: AnyCancellable?
     private var milestoneObserver: AnyCancellable?
     private var trackDropObserver: AnyCancellable?
@@ -575,6 +582,9 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
         }
         rightEarObserver = AppSettings.shared.$notchRightEar.removeDuplicates().sink { [weak self] module in
             self?.recomputeGeometry(animate: false, rightEar: module)
+        }
+        placementObserver = AppSettings.shared.$notchPlacement.removeDuplicates().sink { [weak self] placement in
+            self?.recomputeGeometry(animate: false, placement: placement)
         }
         // 音浪开关/贴哪只耳朵:同一个 willSet 坑同一个修法——存 sink 参数值、
         // 并且必须重算几何(下限公式 minEarWidth 依赖这两个值,见那边的注释)。
@@ -1164,6 +1174,11 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
         // 刘海本身的真实宽度——无真刘海时为 0(没有需要横向避开的硬件区域,顶部这一行
         // 可以整条给按钮用)。
         let notchWidth: CGFloat
+        let hasPhysicalNotch: Bool
+        let notchLeftX: CGFloat
+        let notchRightX: CGFloat
+        let leftAvailableWidth: CGFloat
+        let rightAvailableWidth: CGFloat
     }
 
     // 用 safeAreaInsets.top 判断这台屏幕有没有真刘海(>0 即有),用
@@ -1190,11 +1205,24 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
             // 描述为"灵动岛的高度比机械刘海的位置多一点"。而 32 这一档的"矮 1pt"落在菜单栏
             // 自己的材质范围内(视觉上仍是菜单栏的一部分,不是裸露的桌面),不会露出明显缝隙。
             // 两难只能二选一,现在改选"贴紧真刘海、不多不少",不再兼顾跟菜单栏条高严丝合缝。
-            return NotchGeometry(notchHeight: notchHeight, centerX: centerX, notchWidth: notchWidth)
+            return NotchGeometry(
+                notchHeight: notchHeight, centerX: centerX,
+                notchWidth: notchWidth, hasPhysicalNotch: true,
+                notchLeftX: leftArea.maxX, notchRightX: rightArea.minX,
+                leftAvailableWidth: leftArea.width, rightAvailableWidth: rightArea.width)
         }
-        // 无真刘海:黑条高度跟这块屏的菜单栏对齐,视觉上跟系统融为一体。
+        // 无真刘海:记录菜单栏高度供暂停/空闲态的小胶囊使用;播放态不会把它当成歌词偏移。
         return NotchGeometry(
-            notchHeight: menuBarHeight(of: screen), centerX: screen.frame.midX, notchWidth: 0)
+            notchHeight: menuBarHeight(of: screen), centerX: screen.frame.midX,
+            notchWidth: 0, hasPhysicalNotch: false,
+            notchLeftX: screen.frame.midX, notchRightX: screen.frame.midX,
+            leftAvailableWidth: screen.frame.width / 2, rightAvailableWidth: screen.frame.width / 2)
+    }
+
+    static func resolvedPlacement(_ requested: NotchPlacement, geometry: NotchGeometry) -> NotchPlacement {
+        guard geometry.hasPhysicalNotch else { return .center }
+        guard requested == .automatic else { return requested }
+        return geometry.leftAvailableWidth >= geometry.rightAvailableWidth ? .left : .right
     }
 
     // 用户在设置里调的固定宽度(baseWidth,即 AppSettings.notchContentWidth)+ 耳朵下限
@@ -1416,8 +1444,8 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
         hostingView = nil
     }
 
-    // 顶边固定贴在屏幕最顶端(screen.frame.maxY)、水平居中对齐刘海中心点、总高度 =
-    // 刘海高度 + 内容行高度(hover 展开时再加 expandedExtraHeight)、宽度 = 展开宽(稳态宽见
+    // 顶边固定贴在屏幕最顶端(screen.frame.maxY)、水平居中对齐刘海中心点。真刘海屏的
+    // 最大高度含刘海让位;无刘海屏从内容行直接起算,另与空闲展开态取较大值。宽度 = 展开宽(稳态宽见
     // contentWidth(baseWidth:notchWidth:),展开宽在它之上再取 NotchWidthBounds.expandedWidth)。
     // 去掉了 isPlayingOverride 参数:它唯一的用途是算 isCollapsed,而那个已经
     // 改成计算属性了(见那边的注释)。这个函数现在跟播放状态完全无关,自然也就不再需要
@@ -1431,6 +1459,7 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
     /// `self.expandedExtraHeight(...)`(高度),两组互不相干,别混着传。
     private func recomputeGeometry(animate: Bool, contentWidth: CGFloat? = nil,
                                    expandedContentWidth: CGFloat? = nil,
+                                   placement requestedPlacement: NotchPlacement? = nil,
                                    leftEar: NotchEarModule? = nil,
                                    rightEar: NotchEarModule? = nil,
                                    showsEqualizer: Bool? = nil,
@@ -1444,30 +1473,40 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
                                    expandedShowsQuickActions: Bool? = nil) {
         guard let window, let screen = resolvedScreen() else { return }
         let geo = Self.geometry(for: screen)
+        let resolvedPlacement = Self.resolvedPlacement(
+            requestedPlacement ?? AppSettings.shared.notchPlacement, geometry: geo)
+        let effectiveNotchWidth = resolvedPlacement == .center ? geo.notchWidth : 0
         // 四个 @Published 全部判等再写:这个函数挂在设置同步/屏幕插拔/镜像
         // syncAll 多条路径上,绝大多数调用几何根本没变,不判等就是每次白发四条
         // objectWillChange 打醒整卡视图树。
         if contentTopInset != geo.notchHeight { contentTopInset = geo.notchHeight }
-        if notchWidth != geo.notchWidth { notchWidth = geo.notchWidth }
+        if hasPhysicalNotch != geo.hasPhysicalNotch { hasPhysicalNotch = geo.hasPhysicalNotch }
+        if placement != resolvedPlacement { placement = resolvedPlacement }
+        if notchWidth != effectiveNotchWidth { notchWidth = effectiveNotchWidth }
         // 兜底同样读缓收版:收缩判定必须跟上面的可见性判定同一口径,否则会出现
         // "窗口还在但已经缩成刘海"或反过来的错配。
         // 这里不再算 isCollapsed —— 它已经是从 isPlayingNow/isExpanded 现算的计算属性
         // (改,理由见那边的注释)。几何重算只管刘海尺寸和卡片宽度。
-        let newSteady = Self.contentWidth(
+        var newSteady = Self.contentWidth(
             baseWidth: contentWidth ?? AppSettings.shared.notchContentWidth,
-            notchWidth: geo.notchWidth,
+            notchWidth: effectiveNotchWidth,
             leftEar: leftEar ?? AppSettings.shared.notchLeftEar,
             rightEar: rightEar ?? AppSettings.shared.notchRightEar,
             showsEqualizer: showsEqualizer ?? AppSettings.shared.notchShowsEqualizer,
             equalizerEar: equalizerEar ?? AppSettings.shared.notchEqualizerEar,
             contentTopInset: geo.notchHeight)
-        if steadyCardWidth != newSteady { steadyCardWidth = newSteady }
         // 展开宽 = max(稳态真实宽, 展开设定)。稳态已经过耳朵下限,所以展开这边
         // 不必再算一遍下限;两个设定值的不变量「展开 ≥ 稳态」由 NotchWidthBounds 统一兜住,
         // 用户在快捷面板把稳态拖过展开也不会出现"hover 反而变窄"。
-        let newExpanded = NotchWidthBounds.expandedWidth(
+        var newExpanded = NotchWidthBounds.expandedWidth(
             steady: newSteady,
             expandedSetting: expandedContentWidth ?? CGFloat(AppSettings.shared.notchExpandedContentWidth))
+        if resolvedPlacement != .center {
+            let available = (resolvedPlacement == .left ? geo.leftAvailableWidth : geo.rightAvailableWidth) - 16
+            newExpanded = min(newExpanded, Self.sideCardMaxWidth, max(1, available))
+            newSteady = min(newSteady, newExpanded)
+        }
+        if steadyCardWidth != newSteady { steadyCardWidth = newSteady }
         if expandedCardWidth != newExpanded { expandedCardWidth = newExpanded }
         // 窗口恒为**最大**形态(展开态)的尺寸,不再随收起/稳态/展开三种形态改。三种形态
         // 现在是卡片在这个固定窗口里自己变大变小(NotchWindowRoot),窗口只在屏幕几何或
@@ -1484,25 +1523,34 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
         // 留出余量确实修好了那个直角,但阴影完整画出来之后整个卡片外侧糊着一层灰,比原
         // 来更糟 —— 于是投影整个撤掉(见 NotchLyricsView 的 body 末尾),这圈余量也跟着
         // 撤回。**要加投影就得同时加回余量**,两件事绑在一起,别只做一半。
-        // 收听里程碑的报喜卡片(顶行 + milestonePanelHeight)在展开区很矮的配置下可能比展开态还高,取两者大的。
-        let size = NSSize(
-            width: expandedCardWidth,
-            height: max(geo.notchHeight + lyricRowHeight + self.expandedExtraHeight(
+        let activeExpandedHeight = (resolvedPlacement == .center && geo.hasPhysicalNotch ? geo.notchHeight : 0)
+            + lyricRowHeight + self.expandedExtraHeight(
                 expandedShowsNextLine: expandedShowsNextLine,
                 expandedShowsControls: expandedShowsControls,
                 expandedTrackInfoShowsArtwork: expandedTrackInfoShowsArtwork,
                 expandedTrackInfoShowsTitle: expandedTrackInfoShowsTitle,
                 expandedTrackInfoShowsArtist: expandedTrackInfoShowsArtist,
                 expandedTrackInfoShowsAlbum: expandedTrackInfoShowsAlbum,
-                expandedShowsQuickActions: expandedShowsQuickActions),
-                        geo.notchHeight + NotchMetrics.milestonePanelHeight))
+                expandedShowsQuickActions: expandedShowsQuickActions)
+        let idleExpandedHeight = geo.notchHeight + NotchMetrics.idleExpandedPanelHeight
+        let milestoneHeight = geo.notchHeight + NotchMetrics.milestonePanelHeight
+        let size = NSSize(
+            width: expandedCardWidth,
+            height: max(activeExpandedHeight, idleExpandedHeight, milestoneHeight))
+        let sideGap: CGFloat = 8
+        let originX: CGFloat
+        switch resolvedPlacement {
+        case .left: originX = geo.notchLeftX - sideGap - size.width
+        case .right: originX = geo.notchRightX + sideGap
+        case .center, .automatic: originX = geo.centerX - size.width / 2
+        }
         // 必须先取成整点,规则跟 AppKit 自己对窗口 frame 做的一致(实测:原点向下取整、宽高
         // 向上取整)。刘海高度 `safeAreaInsets.top` 在部分机型 / 缩放档下带小数(如 33.5),
         // 不取整的话:① 下面的判等永远不等(window.frame 已被取整),每次调用都白做一次同步
         // 重绘;② contentView 被设回未取整的尺寸、贴着窗口左下角,顶边空出半点,灵动岛
         // 上方露出一条菜单栏细缝。hostFrame 也要用取整后的尺寸,两处一起改。
         let frame = NSRect(
-            x: (geo.centerX - size.width / 2).rounded(.down),
+            x: originX.rounded(.down),
             y: (screen.frame.maxY - size.height).rounded(.down),
             width: size.width.rounded(.up),
             height: size.height.rounded(.up)

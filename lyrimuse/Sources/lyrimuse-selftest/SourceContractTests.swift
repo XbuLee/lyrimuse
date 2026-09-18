@@ -1450,7 +1450,7 @@ func runSourceContractTests() {
     // 「副行」(09-06)和字号(菜单栏 09-03 / 灵动岛 09-09)一直漏在外面 —— 一漏就是静默的:
     // 面板照常能用,只是少了两个本该在的旋钮,没有任何东西会红。这一组钉住补齐后的清单。
     //
-    // 顺带钉住同日的两件事:①灵动岛宽度合成**一根双滑块**(跟编辑台形态取齐,也是腾出行数的前提);
+    // 顺带钉住同日的两件事:①灵动岛两个宽度保留为**两根明确命名的滑杆**;
     // ②两个字号区间都读真源常量,不在面板里抄字面量(抄一份就会出现"别处够不到的值",
     // 见 NotchEditorStage.widthRange 头注那条规矩)。
     //
@@ -1491,13 +1491,13 @@ func runSourceContractTests() {
             //    NotchLyricRowMetrics 刻意的取舍)。照搬菜单栏那条会停掉一个其实有效的旋钮。
             expectEqual(panel.contains("settings.notchSecondaryLine.showsSecondaryRow"), false,
                         "面板旋钮: 灵动岛字号不许跟副行耦合(副行固定 11pt,主行字号照样生效)")
-            // ⑥ 灵动岛宽度是一根双滑块,不是两根单滑块。
-            expectEqual(panel.contains("RangeSlider("), true,
-                        "面板旋钮: 灵动岛宽度用 RangeSlider 一行双滑块(跟编辑台那根形态取齐)")
-            expectEqual(panel.contains("sliderRow(L10n.t(\"展开宽度\")"), false,
-                        "面板旋钮: 「展开宽度」不再单占一行(已并进双滑块的右边那只)")
-            expectEqual(panel.contains("range: NotchEditorStage.usableExpandedWidthRangeOnCurrentScreen"), false,
-                        "面板旋钮: 双滑块两只共用 usableWidthRange,「展开不许比稳态窄」由 NotchWidthRangeDrag 管")
+            // ⑥ 常驻 / 展开各有一根滑杆。双滑块端点靠近时难以点中常驻端点,会让人误以为它不可调。
+            expectEqual(panel.contains("sliderRow(L10n.t(\"常驻宽度\")"), true,
+                        "面板旋钮: 灵动岛要有独立的「常驻宽度」滑杆")
+            expectEqual(panel.contains("sliderRow(L10n.t(\"展开宽度\")"), true,
+                        "面板旋钮: 灵动岛要有独立的「展开宽度」滑杆")
+            expectEqual(panel.contains("range: NotchEditorStage.usableExpandedWidthRangeOnCurrentScreen"), true,
+                        "面板旋钮: 展开宽度下界跟随常驻真实宽度")
             // ⑦ 「歌词窗口」那一格也能翻面。它**不是**一个 LyricsSurface(没有常驻开关),所以
             //    快捷设置的去处是 PanelQuickTarget 而不是 LyricsSurface? —— 别为了少包一层
             //    往那个枚举里塞第四个 case(它前三个 rawValue 是跨文件契约,见 LyricsSurface 头注)。
