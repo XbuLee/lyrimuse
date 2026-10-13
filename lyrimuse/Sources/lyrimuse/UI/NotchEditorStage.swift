@@ -445,7 +445,7 @@ struct NotchEditorStage: View {
     /// 歌词行这一截**按上限**(`NotchLyricRowMetrics.rowHeight`)留,不跟「行高」走:那是一根滑杆,舞台跟着它变高变矮
     /// 的话,拖动时下面整页上下跳,「全部设置」抽屉里的那根滑杆还会从指针底下溜走。卡片在舞台里照样按实际行高画。
     private var cardAreaHeight: CGFloat {
-        let activeExpandedHeight = (chrome.isCenteredOnPhysicalNotch ? chrome.contentTopInset : 0)
+        let activeExpandedHeight = chrome.contentTopInset
             + NotchLyricRowMetrics.rowHeight + NotchMetrics.expandedExtraHeightMax(
             hasLyricPreviewPossible: chrome.expandedShowsNextLine,
             hasControlsPossible: chrome.expandedShowsControls,
@@ -1207,7 +1207,19 @@ struct NotchEditorStage: View {
         let earWidth = max(0, (width - chrome.notchWidth - NotchMetrics.cardHorizontalPadding * 2) / 2)
         let top = chrome.contentOriginY
         var spots: [CardHotspot] = []
-        if top > 0 {
+        if chrome.usesCompactMenuBarLayout {
+            let compactEarWidth = NotchCompactMenuBarLayout.earWidth(cardWidth: width)
+            spots = [
+                CardHotspot(kind: .leftEar,
+                            rects: [CGRect(x: NotchMetrics.cardHorizontalPadding, y: 0,
+                                           width: compactEarWidth, height: chrome.displayLyricRowHeight)],
+                            target: .leftEar, title: L10n.t("左耳"), arrowEdge: .leading),
+                CardHotspot(kind: .rightEar,
+                            rects: [CGRect(x: width - NotchMetrics.cardHorizontalPadding - compactEarWidth, y: 0,
+                                           width: compactEarWidth, height: chrome.displayLyricRowHeight)],
+                            target: .rightEar, title: L10n.t("右耳"), arrowEdge: .trailing),
+            ]
+        } else if top > 0 {
             spots = [
                 CardHotspot(kind: .leftEar,
                             rects: [CGRect(x: NotchMetrics.cardHorizontalPadding, y: 0, width: earWidth, height: top)],
@@ -1232,8 +1244,12 @@ struct NotchEditorStage: View {
             if chrome.isExpanded, chrome.showsExpandedLyricPreview {
                 lyricHeight += NotchExpandedMetrics.lyricPreviewBlock
             }
+            let lyricX = chrome.usesCompactMenuBarLayout
+                ? NotchMetrics.cardHorizontalPadding + NotchCompactMenuBarLayout.earWidth(cardWidth: width) : 0
+            let lyricWidth = chrome.usesCompactMenuBarLayout
+                ? NotchCompactMenuBarLayout.lyricWidth(cardWidth: width) : width
             spots.append(CardHotspot(kind: .lyricRow,
-                                     rects: [CGRect(x: 0, y: y, width: width, height: lyricHeight)],
+                                     rects: [CGRect(x: lyricX, y: y, width: lyricWidth, height: lyricHeight)],
                                      target: .lyricRow, title: L10n.t("歌词行"), arrowEdge: .trailing))
             y += lyricHeight
         }

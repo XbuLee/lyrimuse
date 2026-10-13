@@ -651,6 +651,28 @@ enum NotchMetrics {
     }
 }
 
+/// 无刘海 / 侧边常驻态把左右耳和歌词压进同一条菜单栏高度时的横向分栏。
+///
+/// 左右耳各占卡片约 22%，并给中间歌词至少留 72pt；宽卡片上再把单耳封顶在 82pt，
+/// 避免耳朵继续吞掉歌词空间。真实视图与编辑台热点都走这份算术，不能各算一套。
+enum NotchCompactMenuBarLayout {
+    static let minimumEarWidth: CGFloat = 44
+    static let maximumEarWidth: CGFloat = 82
+    static let minimumLyricWidth: CGFloat = 72
+    static let earFraction: CGFloat = 0.22
+
+    static func earWidth(cardWidth: CGFloat) -> CGFloat {
+        let contentWidth = max(0, cardWidth - NotchMetrics.cardHorizontalPadding * 2)
+        let lyricLimited = max(0, (contentWidth - minimumLyricWidth) / 2)
+        let preferred = min(maximumEarWidth, max(minimumEarWidth, cardWidth * earFraction))
+        return min(preferred, lyricLimited)
+    }
+
+    static func lyricWidth(cardWidth: CGFloat) -> CGFloat {
+        max(0, cardWidth - NotchMetrics.cardHorizontalPadding * 2 - earWidth(cardWidth: cardWidth) * 2)
+    }
+}
+
 /// NotchLyricsView 需要从"承载它的那个东西"那里知道的全部几何/状态 —— 一共就这几项。
 ///
 /// 抽成协议是为了让**同一份视图**既能装进真窗口,也能装进「外观」页的预览里。
@@ -761,6 +783,12 @@ protocol NotchChromeSource: ObservableObject {
 extension NotchChromeSource {
     var isCenteredOnPhysicalNotch: Bool { hasPhysicalNotch && placement == .center }
 
+    /// 无刘海或侧放的常驻态只有一条菜单栏高度，左右耳与歌词在这一条里分栏显示。
+    /// 展开态退出紧凑布局，恢复“耳朵顶行 + 完整歌词行”。
+    var usesCompactMenuBarLayout: Bool {
+        !isCenteredOnPhysicalNotch && !isExpanded && !isCollapsed && hasTrack && showsLyricRow
+    }
+
     /// 那一行「正在播放」的歌词行(`lyricRow`,44pt 高)到底画不画 —— 用户关掉「显示歌词」时
     /// 稳态确实该隐藏(退化成贴着刘海的状态栏,这是那个开关本来的意思);但**展开之后必须
     /// 照常画**(回归护栏:只放开「下一句预览」那一行是不够的,这一行
@@ -771,12 +799,11 @@ extension NotchChromeSource {
     /// `if controller.showsLyricRow`)必须用同一个值。
     var showsLyricRow: Bool { hasTrack && (showsLyrics || isExpanded) }
 
-    /// 顶部耳朵行实际占掉的高度。有物理刘海时必须始终避让;无刘海屏幕在播放并显示
-    /// 歌词时不再保留一段“假刘海”,歌词行直接从卡片顶边开始。暂停、空闲或关闭歌词时
-    /// 仍保留顶行,否则卡片会缩成 0 高、失去 hover/播放控制入口。
+    /// 顶部耳朵行实际占掉的高度。无刘海 / 侧放的常驻态由紧凑三段布局把耳朵并入歌词行，
+    /// 所以这里是 0；展开后恢复独立顶行。暂停、空闲或关闭歌词时也保留顶行，否则卡片会
+    /// 缩成 0 高、失去 hover / 播放控制入口。
     var contentOriginY: CGFloat {
-        if isCenteredOnPhysicalNotch || isCollapsed || !hasTrack || !showsLyricRow { return contentTopInset }
-        return 0
+        usesCompactMenuBarLayout ? 0 : contentTopInset
     }
 
     /// 侧放或无刘海时，常驻歌词行不能高过菜单栏；展开后恢复用户配置的完整行高。
@@ -948,6 +975,8 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
             // 超出边界的部分被窗口硬裁掉,裁到的正好是圆弧那一小段)。
             let earWidth = max(0, (proxy.size.width - controller.notchWidth
                                    - NotchMetrics.cardHorizontalPadding * 2) / 2)
+            let compactEarWidth = NotchCompactMenuBarLayout.earWidth(cardWidth: proxy.size.width)
+            let compactLyricWidth = NotchCompactMenuBarLayout.lyricWidth(cardWidth: proxy.size.width)
             ZStack(alignment: .top) {
                 backgroundLayer(size: proxy.size)
                 // 收起态铺一层纯黑盖住卡片样式自己的底:没在播放时
@@ -998,7 +1027,10 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
                     // 歌名/播放键都收进 hover 展开卡);稳态/展开 = 歌名 + 播放键。
                     // 两种形态是**同一个** topRow 按 isCollapsed 换耳朵里的内容,不是两个视图
                     // 在这里 if/else 互换(理由见 topRow 头注)。
-                    if controller.contentOriginY > 0 {
+                    if controller.usesCompactMenuBarLayout {
+                        topRow(earWidth: compactEarWidth, gapWidth: compactLyricWidth)
+                            .frame(height: controller.displayLyricRowHeight)
+                    } else if controller.contentOriginY > 0 {
                         topRow(earWidth: earWidth)
                             .frame(height: controller.contentOriginY)
                     }
@@ -1057,7 +1089,10 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
             // 歌词行上(稳态那份歌词行这时让开,见 cardBodyLayer)。常驻:收回 / 换下一条的动画才演得出来。
             .overlay(alignment: .top) {
                 NotchTrackDropStrip(
-                    drop: shownTrackDrop, noteTint: trackDropNoteTint, width: controller.steadyCardWidth,
+                    drop: shownTrackDrop, noteTint: trackDropNoteTint,
+                    width: controller.usesCompactMenuBarLayout
+                        ? NotchCompactMenuBarLayout.lyricWidth(cardWidth: controller.steadyCardWidth)
+                        : controller.steadyCardWidth,
                     height: controller.showsLyrics ? controller.displayLyricRowHeight : NotchMetrics.trackDropHeight,
                     animated: !reduceMotion)
                     .padding(.top, controller.contentOriginY)
@@ -1206,8 +1241,8 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
     /// 14～22pt(矮刘海机型顶行可能不到 26pt)。装饰元素,读屏不念。
     /// 顶行中间刘海那一段的**占位**:只有宽度,什么都不画。胶囊本体(notchSeam)自钉在 body 的
     /// ZStack 顶部居中(理由见那里),顶行只需要把这段宽度让出来。
-    private var notchGap: some View {
-        Spacer(minLength: 0).frame(width: controller.notchWidth)
+    private func notchGap(width: CGFloat? = nil) -> some View {
+        Spacer(minLength: 0).frame(width: width ?? controller.notchWidth)
     }
 
     private var notchSeam: some View {
@@ -1298,7 +1333,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
     /// 布局细节两条,收起与稳态**一致**、不随状态变:朝刘海那一侧内缩 `earNotchInset`(用户
     /// 要求「歌手不要那么紧贴真实刘海」;收起态 34pt 的耳朵减掉 6 还剩 28,放得下 23pt 的封面 / 14pt
     /// 的音浪);左耳内容靠左外缘、右耳靠右外缘(05 章「指示条贴外缘,收放切换时不横跳」)。
-    private func topRow(earWidth: CGFloat) -> some View {
+    private func topRow(earWidth: CGFloat, gapWidth: CGFloat? = nil) -> some View {
         let collapsed = controller.isCollapsed
         let leftModule: NotchEarModule = collapsed ? .artwork : playback.leftEar
         let rightModule: NotchEarModule = collapsed ? .none : playback.rightEar
@@ -1370,7 +1405,7 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
 
             // 刘海本身的空当——物理硬件不发光区域。那枚肉眼看不见的彩蛋(notchSeam)
             // **不画在这一行里**,而是钉在 body 的 ZStack 顶部居中,这里只留空当的宽度(理由见 notchGap)。
-            notchGap
+            notchGap(width: gapWidth)
 
             // 右耳:模块 + (可选)音浪(设计评审的终形,用户逐步拍板;
             // 从"音浪固定贴右耳"改成可配置贴哪只耳朵/要不要显示):控制键全部
@@ -1814,7 +1849,11 @@ struct NotchLyricsView<Chrome: NotchChromeSource>: View {
             // 按宽度断句只认一份歌词行的宽:稳态那份(更窄)在就报它,不在(「显示歌词」关着)才报展开那份。
             if controller.showsLyrics {
                 lyricRow(reportsWidth: reportsLineLayout)
-                    .frame(width: controller.steadyCardWidth, height: controller.displayLyricRowHeight)
+                    .frame(
+                        width: controller.usesCompactMenuBarLayout
+                            ? NotchCompactMenuBarLayout.lyricWidth(cardWidth: controller.steadyCardWidth)
+                            : controller.steadyCardWidth,
+                        height: controller.displayLyricRowHeight)
                     .padding(.top, top)
                     // 换歌翻牌的歌名盖在这一行上时让开(见 body 里那条 NotchTrackDropStrip)。
                     .modifier(NotchCardLayerActive(active: !expanded && shownTrackDrop == nil, staggered: staggered))

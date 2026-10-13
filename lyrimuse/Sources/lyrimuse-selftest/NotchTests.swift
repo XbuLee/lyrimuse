@@ -456,6 +456,18 @@ func runNotchTests() {
         expectEqual(view.contains("var lyricRowHeight: CGFloat { get }")
                     && view.contains("+ ((showsLyrics || expanded) ? displayLyricRowHeight(expanded: expanded)"), true,
                     "高度接线: chrome 给实际行高,卡片高度公式读它")
+        expectEqual(view.contains("var usesCompactMenuBarLayout: Bool")
+                    && view.contains("topRow(earWidth: compactEarWidth, gapWidth: compactLyricWidth)")
+                    && view.contains("NotchCompactMenuBarLayout.lyricWidth(cardWidth: controller.steadyCardWidth)"), true,
+                    "紧凑布局: 无刘海常驻态仍画左右耳,歌词只占中间分栏")
+        expectEqual(view.contains("usesCompactMenuBarLayout ? 0 : contentTopInset")
+                    && view.contains("if expanded || isCenteredOnPhysicalNotch { return lyricRowHeight }"), true,
+                    "紧凑布局: 常驻高度不超过菜单栏,展开恢复顶行与完整歌词行高")
+        expectEqual(controller.contains("let activeExpandedHeight = geo.notchHeight + lyricRowHeight"), true,
+                    "紧凑布局: 真窗口展开高度包含恢复出来的耳朵顶行")
+        expectEqual(stage.contains("if chrome.usesCompactMenuBarLayout")
+                    && stage.contains("let compactEarWidth = NotchCompactMenuBarLayout.earWidth(cardWidth: width)"), true,
+                    "紧凑布局: 编辑台预览保留左右耳点击热区")
         expectEqual(stage.contains("var lyricRowHeight: CGFloat { AppSettings.shared.notchEffectiveLyricRowHeight }")
                     && stage.contains("+ NotchLyricRowMetrics.rowHeight + NotchMetrics.expandedExtraHeightMax("),
                     true, "高度接线: 编辑台替身现读实际行高,舞台按上限留高度(拖滑杆时整页不跳)")

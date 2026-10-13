@@ -1523,8 +1523,8 @@ final class NotchLyricsWindowController: NSWindowController, ObservableObject, N
         // 留出余量确实修好了那个直角,但阴影完整画出来之后整个卡片外侧糊着一层灰,比原
         // 来更糟 —— 于是投影整个撤掉(见 NotchLyricsView 的 body 末尾),这圈余量也跟着
         // 撤回。**要加投影就得同时加回余量**,两件事绑在一起,别只做一半。
-        let activeExpandedHeight = (resolvedPlacement == .center && geo.hasPhysicalNotch ? geo.notchHeight : 0)
-            + lyricRowHeight + self.expandedExtraHeight(
+        // 展开态一律恢复独立耳朵顶行；无刘海 / 侧放只有常驻态才把耳朵并进歌词行。
+        let activeExpandedHeight = geo.notchHeight + lyricRowHeight + self.expandedExtraHeight(
                 expandedShowsNextLine: expandedShowsNextLine,
                 expandedShowsControls: expandedShowsControls,
                 expandedTrackInfoShowsArtwork: expandedTrackInfoShowsArtwork,
