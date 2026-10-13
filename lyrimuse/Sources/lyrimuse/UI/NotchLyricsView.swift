@@ -882,7 +882,8 @@ extension NotchChromeSource {
     /// 卡片外形要的几何(两个圆角设置另由 `NotchCornerLive` 给)。卡片自裁、纯色底、出场裁剪、编辑台虚线框四处都传这一个。
     var cardOutline: NotchCardOutline {
         NotchCardOutline(notchHeight: contentTopInset, collapsedHeight: cardHeight(expanded: false),
-                         expandedHeight: cardHeight(expanded: true), isExpanded: isExpanded)
+                         expandedHeight: cardHeight(expanded: true), isExpanded: isExpanded,
+                         showsShoulders: !usesCompactMenuBarLayout)
     }
 
     /// 卡片当前高度 —— **全仓唯一一份公式**,真窗口(NotchWindowRoot)和设置页编辑台
@@ -3580,7 +3581,7 @@ struct NotchHangingShape: Shape {
     /// 「圆角 / 展开圆角」的两态规则(`NotchCardOutline.corner`);nil = 默认,按高度自适应。
     var corner: NotchCornerProfile?
 
-    static func card(notchHeight: CGFloat, corner: NotchCornerProfile? = nil) -> NotchHangingShape {
+    static func card(notchHeight: CGFloat?, corner: NotchCornerProfile? = nil) -> NotchHangingShape {
         NotchHangingShape(bottomCornerRadius: nil, notchHeight: notchHeight, corner: corner)
     }
 

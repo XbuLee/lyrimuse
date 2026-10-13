@@ -97,13 +97,17 @@ final class NotchCornerLive: ObservableObject {
     }
 }
 
-/// 卡片外形要的几何:刘海高、两种形态的卡片高度、此刻是否展开(chrome 的 `cardOutline`)。两个圆角设置不在这里,
-/// 画的时候从 `NotchCornerLive` 取。
+/// 卡片外形要的几何:刘海高、两种形态的卡片高度、此刻是否展开，以及顶边是否需要实体刘海的肩部
+/// (chrome 的 `cardOutline`)。两个圆角设置不在这里，画的时候从 `NotchCornerLive` 取。
 struct NotchCardOutline: Equatable {
     var notchHeight: CGFloat
     var collapsedHeight: CGFloat
     var expandedHeight: CGFloat
     var isExpanded: Bool
+    var showsShoulders: Bool = true
+
+    /// 圆角仍按真实菜单栏 / 刘海高度计算；只有肩部在紧凑菜单栏态关闭。
+    var shoulderNotchHeight: CGFloat? { showsShoulders ? notchHeight : nil }
 
     @MainActor
     func corner(_ live: NotchCornerLive) -> NotchCornerProfile? {
@@ -114,7 +118,7 @@ struct NotchCardOutline: Equatable {
 
     @MainActor
     func shape(_ live: NotchCornerLive) -> NotchHangingShape {
-        .card(notchHeight: notchHeight, corner: corner(live))
+        .card(notchHeight: shoulderNotchHeight, corner: corner(live))
     }
 }
 
