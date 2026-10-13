@@ -26,6 +26,7 @@ struct NotchRevealShape: Shape {
     var heightFraction: CGFloat
     /// nil 表示无刘海 / 侧边紧凑态，不在菜单栏交界处挖实体刘海的内凹肩部。
     var shoulderNotchHeight: CGFloat?
+    var roundsTopCorners: Bool
     /// 同 `NotchHangingShape.card` 的 `corner`(`NotchCardOutline.corner`)。
     var corner: NotchCornerProfile?
 
@@ -33,7 +34,8 @@ struct NotchRevealShape: Shape {
         let width = rect.width * min(1, max(0, widthFraction))
         let height = rect.height * min(1, max(0, heightFraction))
         let visible = CGRect(x: rect.midX - width / 2, y: rect.minY, width: width, height: height)
-        return NotchHangingShape.card(notchHeight: shoulderNotchHeight, corner: corner).path(in: visible)
+        return NotchHangingShape.card(notchHeight: shoulderNotchHeight, corner: corner,
+                                      roundsTopCorners: roundsTopCorners).path(in: visible)
     }
 }
 
@@ -54,6 +56,7 @@ struct NotchRevealClip: ViewModifier {
     func body(content: Content) -> some View {
         content.clipShape(NotchRevealShape(widthFraction: widthFraction, heightFraction: heightFraction,
                                            shoulderNotchHeight: outline.shoulderNotchHeight,
+                                           roundsTopCorners: outline.roundsTopCorners,
                                            corner: outline.corner(live)))
     }
 }

@@ -883,7 +883,8 @@ extension NotchChromeSource {
     var cardOutline: NotchCardOutline {
         NotchCardOutline(notchHeight: contentTopInset, collapsedHeight: cardHeight(expanded: false),
                          expandedHeight: cardHeight(expanded: true), isExpanded: isExpanded,
-                         showsShoulders: !usesCompactMenuBarLayout)
+                         showsShoulders: isCenteredOnPhysicalNotch,
+                         roundsTopCorners: !isCenteredOnPhysicalNotch)
     }
 
     /// 卡片当前高度 —— **全仓唯一一份公式**,真窗口(NotchWindowRoot)和设置页编辑台
@@ -3568,10 +3569,9 @@ struct NotchCardClip: ViewModifier {
 /// 挂在屏幕上沿的卡片外形:顶边贴死屏幕顶、底部两角圆角。
 ///
 /// 两种用法:
-///  - `.card(notchHeight:corner:)`:灵动岛卡片本身,尺寸照机器刘海走 —— 底部圆角默认随高度(`NotchOutline.bottomRadius`,
-///    用户设了「圆角 / 展开圆角」时按 `NotchCornerProfile`),
-///    顶边两侧各一道内凹的「肩膀」(`NotchOutline.shoulder`,按刘海高度),轮廓不越出矩形。卡片、出场裁剪、编辑台里拖宽度时
-///    那圈虚线**都用这一个**,三处各写一份迟早会对不上。
+///  - `.card(notchHeight:corner:roundsTopCorners:)`:灵动岛卡片本身。居中实体刘海模式只圆底角，
+///    顶边两侧各一道内凹的肩部；无刘海 / 侧边模式四角使用同一半径，形成完整圆角胶囊。
+///    卡片、出场裁剪、编辑台里拖宽度时那圈虚线**都用这一个**,三处各写一份迟早会对不上。
 ///  - `NotchHangingShape(bottomCornerRadius:)`:固定圆角、没有肩膀,给设置页里缩小画的示意图用。
 struct NotchHangingShape: Shape {
     /// 固定圆角(示意图用);nil = 按 `corner` 或按高度自适应。
@@ -3580,15 +3580,21 @@ struct NotchHangingShape: Shape {
     var notchHeight: CGFloat?
     /// 「圆角 / 展开圆角」的两态规则(`NotchCardOutline.corner`);nil = 默认,按高度自适应。
     var corner: NotchCornerProfile?
+    /// 无刘海或卡片位于实体刘海侧边时，顶边不需要与硬件黑区融合，四角使用同一半径。
+    var roundsTopCorners = false
 
-    static func card(notchHeight: CGFloat?, corner: NotchCornerProfile? = nil) -> NotchHangingShape {
-        NotchHangingShape(bottomCornerRadius: nil, notchHeight: notchHeight, corner: corner)
+    static func card(notchHeight: CGFloat?, corner: NotchCornerProfile? = nil,
+                     roundsTopCorners: Bool = false) -> NotchHangingShape {
+        NotchHangingShape(bottomCornerRadius: nil, notchHeight: notchHeight, corner: corner,
+                          roundsTopCorners: roundsTopCorners)
     }
 
-    init(bottomCornerRadius: CGFloat?, notchHeight: CGFloat? = nil, corner: NotchCornerProfile? = nil) {
+    init(bottomCornerRadius: CGFloat?, notchHeight: CGFloat? = nil, corner: NotchCornerProfile? = nil,
+         roundsTopCorners: Bool = false) {
         self.bottomCornerRadius = bottomCornerRadius
         self.notchHeight = notchHeight
         self.corner = corner
+        self.roundsTopCorners = roundsTopCorners
     }
 
     func path(in rect: CGRect) -> Path {
@@ -3603,6 +3609,9 @@ struct NotchHangingShape: Shape {
                                                  bodyWidth: bodyWidth, shoulder: s)
         } else {
             r = NotchOutline.bottomRadius(height: rect.height, bodyWidth: bodyWidth)
+        }
+        if roundsTopCorners {
+            return Path(roundedRect: rect, cornerRadius: r)
         }
         let left = rect.minX + s
         let right = rect.maxX - s

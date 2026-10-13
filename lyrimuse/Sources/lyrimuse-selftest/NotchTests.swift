@@ -1060,20 +1060,22 @@ func runNotchTests() {
             let v = src("NotchLyricsView.swift"), reveal = src("NotchRevealShape.swift"), stageSrc = src("NotchEditorStage.swift")
             let rootSrc = src("NotchWindowRoot.swift"), liveSrc = src("NotchCornerLive.swift")
             // 四处外形都从 chrome 的 cardOutline + NotchCornerLive 拼同一个形状。
-            expectEqual(liveSrc.contains(".card(notchHeight: shoulderNotchHeight, corner: corner(live))"), true,
+            expectEqual(liveSrc.contains(".card(notchHeight: shoulderNotchHeight, corner: corner(live), roundsTopCorners: roundsTopCorners)"), true,
                         "外轮廓契约: 外形统一由 NotchCardOutline 拼成 .card")
-            expectEqual(v.contains("showsShoulders: !usesCompactMenuBarLayout"), true,
-                        "外轮廓契约: 无刘海 / 侧边紧凑态关闭实体刘海肩部")
+            expectEqual(v.contains("showsShoulders: isCenteredOnPhysicalNotch")
+                        && v.contains("roundsTopCorners: !isCenteredOnPhysicalNotch"), true,
+                        "外轮廓契约: 只有居中实体刘海保留肩部,无刘海 / 侧边两态都画四角圆角")
             expectEqual(v.contains("content.clipShape(outline.shape(live))"), true, "外轮廓契约: 卡片自己那道裁剪用 .card")
             expectEqual(v.contains("NotchCardClip(enabled: !hostClipsCard, outline: controller.cardOutline)"), true,
                         "外轮廓契约: 卡片裁剪的肩膀按这块屏的刘海高度、圆角按设置")
             expectEqual(v.contains("NotchCardOutlineReader(outline: controller.cardOutline) { $0.fill(playback.notchCardStyle.fill) }"), true,
                         "外轮廓契约: 纯色底用 .card")
-            expectEqual(reveal.contains("return NotchHangingShape.card(notchHeight: shoulderNotchHeight, corner: corner).path(in: visible)"), true,
+            expectEqual(reveal.contains("roundsTopCorners: roundsTopCorners).path(in: visible)"), true,
                         "外轮廓契约: 出场裁剪终态与卡片同形(真窗口里只留这一道)")
             expectEqual(reveal.contains("shoulderNotchHeight: outline.shoulderNotchHeight,")
+                        && reveal.contains("roundsTopCorners: outline.roundsTopCorners,")
                         && reveal.contains("corner: outline.corner(live))"), true,
-                        "外轮廓契约: 出场裁剪同步肩部状态,圆角仍从 NotchCornerLive 取")
+                        "外轮廓契约: 出场裁剪同步肩部与顶角状态,圆角仍从 NotchCornerLive 取")
             expectEqual(rootSrc.contains(".modifier(NotchRevealClip(widthFraction: state.widthFraction,")
                         && rootSrc.contains("outline: controller.cardOutline))"), true,
                         "外轮廓契约: 出场裁剪传的是同一个刘海高度和圆角")

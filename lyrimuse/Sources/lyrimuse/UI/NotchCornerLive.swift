@@ -105,8 +105,9 @@ struct NotchCardOutline: Equatable {
     var expandedHeight: CGFloat
     var isExpanded: Bool
     var showsShoulders: Bool = true
+    var roundsTopCorners: Bool = false
 
-    /// 圆角仍按真实菜单栏 / 刘海高度计算；只有肩部在紧凑菜单栏态关闭。
+    /// 圆角仍按真实菜单栏 / 刘海高度计算；只有居中实体刘海模式保留肩部。
     var shoulderNotchHeight: CGFloat? { showsShoulders ? notchHeight : nil }
 
     @MainActor
@@ -118,7 +119,7 @@ struct NotchCardOutline: Equatable {
 
     @MainActor
     func shape(_ live: NotchCornerLive) -> NotchHangingShape {
-        .card(notchHeight: shoulderNotchHeight, corner: corner(live))
+        .card(notchHeight: shoulderNotchHeight, corner: corner(live), roundsTopCorners: roundsTopCorners)
     }
 }
 
